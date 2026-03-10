@@ -27,6 +27,42 @@ class ContextualCommentator:
         self.away_team = away_team
         self.recent_events = []
         self.goal_scorers = {}
+    
+    def generate_goal_method(self, player):
+        """Generate how the goal was scored"""
+        methods = [
+            f"{player} dinks it over the keeper!",
+            f"{player} powers it home!",
+            f"{player} taps it in from close range!",
+            f"{player} strikes from distance! What a finish!",
+            f"{player} volleys it past the keeper!",
+            f"{player} with a header! Powerful!",
+            f"{player} slots it home!",
+            f"{player} chips it perfectly over the goalkeeper!",
+            f"{player} finishes from the rebound!",
+            f"{player} pokes it past the keeper!",
+            f"{player} scores after a sweeping move!",
+            f"{player} with a left-footed strike!",
+            f"{player} right-footed, and it's in!",
+            f"{player} with a poacher's finish!",
+            f"{player} on the breakaway! Into the net!",
+            f"{player} cushions it home!",
+            f"{player} smashes it in!",
+            f"{player} with a clinical finish!",
+            f"{player} turns and shoots! Goal!",
+            f"{player} receives and scores immediately!",
+            f"{player} instinctive finish!",
+            f"{player} bundles it in!",
+            f"{player} with a well-taken goal!",
+            f"{player} capitalizes on the loose ball!",
+            f"{player} scores after quick passing!",
+            f"{player} with a thunderous strike!",
+            f"{player} finishes with precision!",
+            f"{player} scores at the far post!",
+            f"{player} with a back-heel finish!",
+            f"{player} receives it and converts!"
+        ]
+        return random.choice(methods)
         
     def generate_goal_commentary(self, player, team, minute, score):
         """Context-aware goal commentary in Peter Drury's style"""
@@ -36,40 +72,154 @@ class ContextualCommentator:
         is_first_goal = score["home"] + score["away"] == 1
         scorer_has_brace = self.goal_scorers.get(player, 0) >= 1
         
+        # Get how the goal was scored
+        goal_method = self.generate_goal_method(player)
+        
         if is_late_game and is_go_ahead:
             templates = [
-                f"And it's there! {player}! In the ninety-th minute!",
-                f"Can you believe it? {player} has done it!",
-                f"Late drama. {player} strikes. This is extraordinary!",
-                f"The moment. The stage. {player}!"
+                f"And it's there! {goal_method}",
+                f"In the ninety-th minute! {goal_method}",
+                f"Late drama. {goal_method}",
+                f"The moment. The stage. {goal_method}",
+                f"Unbelievable! {goal_method}",
+                f"In the dying moments! {goal_method}",
+                f"At the death! {goal_method}",
+                f"Drama! Pure football drama! {goal_method}",
+                f"This is it. This is the moment. {goal_method}",
+                f"Late winner! {goal_method}"
             ]
         elif scorer_has_brace:
             templates = [
-                f"{player} again! His second! And what a performance this is!",
-                f"It's {player}! Twice now! He's the man of the match!",
-                f"Two for {player}. That's a brace. Complete dominance.",
-                f"{player} with his second. He's been magnificent!"
+                f"Again! {goal_method} His second!",
+                f"It's {player}! Twice now! {goal_method}",
+                f"Two for {player}! {goal_method}",
+                f"Another one! {goal_method} The hat-trick is within reach!",
+                f"He won't stop! {goal_method}",
+                f"Two goals for {player}. {goal_method}",
+                f"A second for {player}. {goal_method}",
+                f"{player} has taken over this match. {goal_method}",
+                f"Double for {player}! {goal_method}",
+                f"Magnificent! {goal_method} His second of the day!"
             ]
         elif is_equalizer:
             templates = [
-                f"And it's level! {player} does it! All square now!",
-                f"{player} levels it! That's the equalizer!",
-                f"Back they come. {player}. And it's equal.",
-                f"We're level. {player} makes it so!"
+                f"And it's level! {goal_method}",
+                f"They've equalized! {goal_method}",
+                f"Back they come. {goal_method}",
+                f"Parity restored! {goal_method}",
+                f"The reply! {goal_method}",
+                f"They've hit back! {goal_method}",
+                f"An instant response! {goal_method}",
+                f"No, they've equalized! {goal_method}",
+                f"The teams are level. {goal_method}",
+                f"All square! {goal_method}"
             ]
         elif is_first_goal:
             templates = [
-                f"It's in! {player} opens the scoring!",
-                f"The deadlock is broken! {player}!",
-                f"{player} with the first goal of the match.",
-                f"And it's there. {player}. First blood."
+                f"It's in! {goal_method}",
+                f"The deadlock is broken! {goal_method}",
+                f"The breakthrough! {goal_method}",
+                f"We have a goal! {goal_method}",
+                f"{player} breaks the deadlock! {goal_method}",
+                f"The opening goal! {goal_method}",
+                f"First to score! {goal_method}",
+                f"{player} gets us underway! {goal_method}",
+                f"First blood. {goal_method}",
+                f"The first goal of the match! {goal_method}"
             ]
         else:
             templates = [
-                f"{player}! And that's a goal!",
-                f"It's in. {player} finds the net.",
-                f"{player}! Into the back of the net!",
-                f"Goal! {player}!"
+                f"{goal_method}",
+                f"There it is! {goal_method}",
+                f"{player} makes it count! {goal_method}",
+                f"Beautiful! {goal_method}",
+                f"The ball is in the net. {goal_method}",
+                f"He's done it! {goal_method}",
+                f"{player} gets his name on the scoresheet! {goal_method}",
+                f"It's a goal! {goal_method}",
+                f"And {player} scores! {goal_method}",
+                f"Well taken! {goal_method}",
+                f"Superb finish! {goal_method}",
+                f"Into the back of the net! {goal_method}"
+            ]
+        
+    def generate_goal_commentary(self, player, team, minute, score):
+        """Context-aware goal commentary in Peter Drury's style"""
+        is_equalizer = score["home"] == score["away"]
+        is_go_ahead = abs(score["home"] - score["away"]) == 1
+        is_late_game = minute > 75
+        is_first_goal = score["home"] + score["away"] == 1
+        scorer_has_brace = self.goal_scorers.get(player, 0) >= 1
+        
+        # Get how the goal was scored
+        goal_method = self.generate_goal_method(player)
+        
+        if is_late_game and is_go_ahead:
+            templates = [
+                f"And it's there! {goal_method}",
+                f"In the ninety-th minute! {goal_method}",
+                f"Late drama. {goal_method}",
+                f"The moment. The stage. {goal_method}",
+                f"Unbelievable! {goal_method}",
+                f"In the dying moments! {goal_method}",
+                f"At the death! {goal_method}",
+                f"Drama! Pure football drama! {goal_method}",
+                f"This is it. This is the moment. {goal_method}",
+                f"Late winner! {goal_method}"
+            ]
+        elif scorer_has_brace:
+            templates = [
+                f"Again! {goal_method} His second!",
+                f"It's {player}! Twice now! {goal_method}",
+                f"Two for {player}! {goal_method}",
+                f"Another one! {goal_method} The hat-trick is within reach!",
+                f"He won't stop! {goal_method}",
+                f"Two goals for {player}. {goal_method}",
+                f"A second for {player}. {goal_method}",
+                f"{player} has taken over this match. {goal_method}",
+                f"Double for {player}! {goal_method}",
+                f"Magnificent! {goal_method} His second of the day!"
+            ]
+        elif is_equalizer:
+            templates = [
+                f"And it's level! {goal_method}",
+                f"They've equalized! {goal_method}",
+                f"Back they come. {goal_method}",
+                f"Parity restored! {goal_method}",
+                f"The reply! {goal_method}",
+                f"They've hit back! {goal_method}",
+                f"An instant response! {goal_method}",
+                f"No, they've equalized! {goal_method}",
+                f"The teams are level. {goal_method}",
+                f"All square! {goal_method}"
+            ]
+        elif is_first_goal:
+            templates = [
+                f"It's in! {goal_method}",
+                f"The deadlock is broken! {goal_method}",
+                f"The breakthrough! {goal_method}",
+                f"We have a goal! {goal_method}",
+                f"{player} breaks the deadlock! {goal_method}",
+                f"The opening goal! {goal_method}",
+                f"First to score! {goal_method}",
+                f"{player} gets us underway! {goal_method}",
+                f"First blood. {goal_method}",
+                f"The first goal of the match! {goal_method}"
+            ]
+        else:
+            templates = [
+                f"{goal_method}",
+                f"There it is! {goal_method}",
+                f"{player} makes it count! {goal_method}",
+                f"Beautiful! {goal_method}",
+                f"The ball is in the net. {goal_method}",
+                f"He's done it! {goal_method}",
+                f"{player} gets his name on the scoresheet! {goal_method}",
+                f"It's a goal! {goal_method}",
+                f"And {player} scores! {goal_method}",
+                f"Well taken! {goal_method}",
+                f"Superb finish! {goal_method}",
+                f"Into the back of the net! {goal_method}"
             ]
         
         self.goal_scorers[player] = self.goal_scorers.get(player, 0) + 1
@@ -87,14 +237,26 @@ class ContextualCommentator:
                 f"{player} shoots! The keeper saves!",
                 f"There's an effort! {player}! Saved!",
                 f"{player} goes for goal. Good save.",
-                f"A chance there for {player}! But the keeper is alert!"
+                f"A chance there for {player}! But the keeper is alert!",
+                f"{player} has a go! The goalkeeper is equal to it!",
+                f"A decent effort from {player}. But it's saved.",
+                f"{player} tries his luck. Comfortably saved.",
+                f"Chance for {player}! Blocked by the keeper!",
+                f"On target from {player}. But the keeper holds firm.",
+                f"{player} forces a save!"
             ]
         else:
             templates = [
                 f"{player} tries from distance. Just wide.",
                 f"There's an attempt. {player}. Off target.",
                 f"{player} shoots. That's over the bar.",
-                f"A wild effort from {player}. Well over."
+                f"A wild effort from {player}. Well over.",
+                f"{player} goes for goal. Wasteful.",
+                f"A speculative effort from {player}. Nowhere near.",
+                f"{player} shoots. That's missing the target.",
+                f"Off the mark from {player}. Poor finish.",
+                f"{player} couldn't find the target there.",
+                f"A chance squandered by {player}. Off target."
             ]
         
         self.recent_events.append({"type": "shot", "player": player, "minute": minute})
@@ -227,6 +389,10 @@ class FootballMatch:
 
 
 if __name__ == "__main__":
-    # Run a match!
-    match = FootballMatch("Arsenal", "Chelsea")
+    # Run a match with random teams
+    teams = ["Arsenal", "Chelsea", "Liverpool", "Man City"]
+    home_team = random.choice(teams)
+    away_team = random.choice([t for t in teams if t != home_team])
+    
+    match = FootballMatch(home_team, away_team)
     match.run_match(speed=0.5)  # 0.5 seconds per minute (45 second match)
