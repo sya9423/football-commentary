@@ -46,25 +46,17 @@ import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# 1. Create Data
-os.makedirs('training_data', exist_ok=True)
-training_data = [
-    {"game_state": "0-0, 5th minute", "action": "Player passes to teammate", "commentary": "Nice possession football here, the team is keeping it tight!"},
-    {"game_state": "1-0, 15th minute", "action": "Player shoots and scores", "commentary": "GOAAAAAL! What a brilliant finish! The striker makes no mistake!"},
-    {"game_state": "1-1, 30th minute", "action": "Goalkeeper makes save", "commentary": "Fantastic save by the keeper! That could have been 2-0!"},
-    {"game_state": "1-1, 45th minute", "action": "Player gets yellow card", "commentary": "That's a warning for the player - he needs to be careful now"},
-    {"game_state": "2-1, 60th minute", "action": "Player dribbles past defender", "commentary": "Magnificent skill! He glides past two defenders like they're not there!"},
-    {"game_state": "2-1, 75th minute", "action": "Corner kick taken", "commentary": "In comes the corner... It's a dangerous delivery!"},
-    {"game_state": "2-2, 85th minute", "action": "Substitute comes on", "commentary": "Fresh legs on the pitch - the manager's making a tactical change"},
-    {"game_state": "2-2, 90th minute", "action": "Whistle for end of match", "commentary": "And that's the final whistle! What a thrilling encounter!"},
-    {"game_state": "0-0, 10th minute", "action": "Player makes tackle", "commentary": "Strong defending! That's a proper block!"},
-    {"game_state": "1-0, 40th minute", "action": "Offside decision", "commentary": "No, he's offside! The flag is up!"},
-]
+# 1. Generate 1000 lines of robust training data using StatsBomb
+# First, install the statsbomb python package we need
+import os
+os.system('pip install statsbombpy')
 
-with open('training_data/commentary.jsonl', 'w') as f:
-    for item in training_data:
-        f.write(json.dumps(item) + '\n')
-print("✓ Data created!")
+# Next, run the script we just wrote! 
+# (This uses real match events + an LLM style template to build our JSONL file)
+print("Running synthetic data generation...")
+os.system('python generate_synthetic_data.py')
+
+print("✓ 1000 pieces of Data created!")
 
 # 2. Load Model & Tokenizer
 model_name = "gpt2" # Lightweight for Colab
@@ -83,7 +75,9 @@ def format_example(example):
     return {'text': f"Game: {example['game_state']}\nAction: {example['action']}\nCommentary: {example['commentary']}"}
 
 def tokenize_function(examples):
-    return tokenizer(examples['text'], max_length=128, truncation=True, padding='max_length')
+    tokens = tokenizer(examples['text'], max_length=128, truncation=True, padding='max_length')
+    tokens['labels'] = tokens['input_ids'].copy()
+    return tokens
 
 formatted_data = dataset['train'].map(format_example)
 tokenized_dataset = formatted_data.map(tokenize_function, remove_columns=['text'], batched=True)
@@ -135,13 +129,13 @@ print(f"✓ Model successfully saved to: {os.listdir('./commentary_model_finetun
 
 ---
 
-## **Cell 6: Test & Export**
-*This loads your updated model, tests it with new hypothetical football scenarios, and downloads the zip file locally.*
+## **Cell 6: Test Model Outputs**
+*This loads your updated model and tests it with new hypothetical football scenarios so you can review the results before downloading.*
+
+> [!WARNING]
+> The commentary below will likely be poor right now because we only trained it on 10 dummy examples in Cell 4! To get high-quality commentary that doesn't ramble, you must replace the data in Cell 4 with thousands of rows of real commentary. 
 
 ```python
-from google.colab import files
-import shutil
-
 # 1. Quick Test
 print("⚽ Running Model Test...")
 fine_tuned_model = AutoModelForCausalLM.from_pretrained('./commentary_model_finetuned')
@@ -156,16 +150,38 @@ def generate_commentary(game_state, action):
     if torch.cuda.is_available():
         inputs = inputs.cuda()
     
+    # We use strict generation parameters to attempt to stop rambling
     outputs = fine_tuned_model.generate(
-        inputs, max_length=100, num_return_sequences=1, 
-        temperature=0.7, top_p=0.9, do_sample=True, pad_token_id=fine_tuned_tokenizer.eos_token_id
+        inputs, 
+        max_new_tokens=40,          # Don't let it talk forever
+        num_return_sequences=1, 
+        temperature=0.6,            # Lower temp for more predictable text
+        top_p=0.9, 
+        do_sample=True, 
+        pad_token_id=fine_tuned_tokenizer.eos_token_id,
+        repetition_penalty=1.2      # Stop it from repeating itself
     )
-    return fine_tuned_tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Extract only the newly generated text (ignore the prompt itself)
+    full_text = fine_tuned_tokenizer.decode(outputs[0], skip_special_tokens=True)
+    generated_commentary = full_text.split("Commentary:")[1].strip() if "Commentary:" in full_text else full_text
+    
+    return generated_commentary
 
 for state, action in [("1-0, 89th minute", "Player misses open goal"), ("0-0, 5th minute", "Harsh tackle")]:
     print(f"\nPrompt: {state} | {action}\nModel says: {generate_commentary(state, action)}")
+```
 
-# 2. Download Model to PC
+---
+
+## **Cell 7: Export Model (Optional)**
+*If you are satisfied with the model outputs from Cell 6, run this cell to download the model zip file.*
+
+```python
+from google.colab import files
+import shutil
+
+# 1. Download Model to PC
 print("\n📦 Zipping model files...")
 shutil.make_archive('commentary_model_finetuned', 'zip', '.', 'commentary_model_finetuned')
 print("📥 Triggering download... (check your browser downloads folder)")
