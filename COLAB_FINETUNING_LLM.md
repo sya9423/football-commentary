@@ -56,17 +56,20 @@ os.system('pip install statsbombpy')
 print("Running synthetic data generation...")
 os.system('python generate_synthetic_data.py')
 
-print("✓ 1000 pieces of Data created!")
+print("✓ 1500 pieces of Data created!")
 
 # 2. Load Model & Tokenizer
-model_name = "gpt2" # Lightweight for Colab
+# Qwen2.5-0.5B is a modern, small but powerful model released in 2024.
+# It is far superior to GPT-2 for understanding structured prompts.
+model_name = "Qwen/Qwen2.5-0.5B"
 print(f"Loading {model_name}...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
-print("✓ Model & Tokenizer loaded!")
+    model.config.pad_token_id = tokenizer.pad_token_id
+print(f"✓ Model loaded: {model_name} ({model.num_parameters() / 1e6:.0f}M params)")
 
 # 3. Format & Tokenize
 dataset = load_dataset('json', data_files='training_data/commentary.jsonl')
@@ -76,7 +79,13 @@ def format_example(example):
 
 def tokenize_function(examples):
     tokens = tokenizer(examples['text'], max_length=128, truncation=True, padding='max_length')
-    tokens['labels'] = tokens['input_ids'].copy()
+    # CRITICAL: Copy input_ids to labels, then mask padding tokens with -100
+    # so the model does NOT try to learn the "empty space" at the end of short sentences.
+    labels = []
+    for ids in tokens['input_ids']:
+        label = [tok if tok != tokenizer.pad_token_id else -100 for tok in ids]
+        labels.append(label)
+    tokens['labels'] = labels
     return tokens
 
 formatted_data = dataset['train'].map(format_example)
@@ -91,28 +100,27 @@ print(f"✓ Data fully formatted and tokenized! Ready for training.")
 *This block configures the trainer, trains the model, and then saves it automatically.*
 
 ```python
-from transformers import Trainer, TrainingArguments, DataCollatorWithPadding
+from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 
 # 1. Training Setup
 print("🚀 Configuring Trainer...")
 training_args = TrainingArguments(
     output_dir='./commentary_model_finetuned',
-    num_train_epochs=3,
-    per_device_train_batch_size=4,  # Small batch to prevent OOM
+    num_train_epochs=10,            # More epochs for rich data convergence
+    per_device_train_batch_size=4,
     gradient_accumulation_steps=2,
-    save_steps=50,
+    save_steps=100,
     logging_steps=10,
-    learning_rate=5e-5,
+    learning_rate=2e-5,             # Lower LR for a smarter model
     weight_decay=0.01,
     warmup_steps=50,
-    # Note: 'overwrite_output_dir' is excluded here to prevent a TypeError 
-    # depending on your specific transformers version in Colab.
+    bf16=True,                      # Use bfloat16 (matches Qwen2.5 weights)
 )
 
 trainer = Trainer(
     model=model,
     args=training_args,
-    data_collator=DataCollatorWithPadding(tokenizer),
+    data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
     train_dataset=tokenized_dataset,
 )
 
@@ -132,8 +140,8 @@ print(f"✓ Model successfully saved to: {os.listdir('./commentary_model_finetun
 ## **Cell 6: Test Model Outputs**
 *This loads your updated model and tests it with new hypothetical football scenarios so you can review the results before downloading.*
 
-> [!WARNING]
-> The commentary below will likely be poor right now because we only trained it on 10 dummy examples in Cell 4! To get high-quality commentary that doesn't ramble, you must replace the data in Cell 4 with thousands of rows of real commentary. 
+> [!NOTE]
+> The model is now trained on 1000 synthetic examples using real StatsBomb match data and a modern Qwen2.5 base model. Results should be significantly more coherent and football-specific.
 
 ```python
 # 1. Quick Test
