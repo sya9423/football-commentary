@@ -41,7 +41,8 @@ class FullCommentarySystem:
                  home_team: str = "Home",
                  away_team: str = "Away",
                  enable_voice: bool = True,
-                 voice_model: str = "en-GB-ThomasNeural"):
+                 voice_model: str = "en-GB-ThomasNeural",
+                 custom_weights: str = None):
         
         logger.info("=" * 60)
         logger.info("FOOTBALL COMMENTARY SYSTEM - INITIALIZING")
@@ -52,9 +53,12 @@ class FullCommentarySystem:
         self.away_team = away_team
         self.enable_voice = enable_voice
         
-        # Initialize detector
+        # Initialize detector (with custom weights if available)
         logger.info("▸ Loading object detector (YOLOv8)...")
-        self.detector = FootballObjectDetector(model_size="small")
+        self.detector = FootballObjectDetector(
+            model_size="small",
+            custom_weights=custom_weights
+        )
         
         # Initialize commentary generator
         logger.info(f"▸ Loading {generator_backend} commentary generator...")
@@ -179,54 +183,43 @@ class FullCommentarySystem:
             
             detections = frame_data["detections"]
             
-            # Look for meaningful actions
-            for action in detections.get("actions", []):
+            # Check for Tier 2 events first (higher quality)
+            event = detections.get("event")
+            if event:
                 current_time = datetime.now().timestamp()
                 
-                if (current_time - last_time) >= min_interval and action["confidence"] > 0.7:
-                    
-                    # Find player
-                    player = None
-                    for p in detections.get("players", []):
-                        if p.get("id") == action["player_id"]:
-                            player = p
-                            break
-                    
-                    if player:
-                        # Create action
+                if (current_time - last_time) >= min_interval:
+                    try:
+                        # Use the event description as the action context
                         player_action = PlayerAction(
-                            player_name=f"{player['team'].upper()}_P{player['id']}",
-                            player_id=player['id'],
-                            team=player['team'],
-                            action=action["action"],
-                            action_confidence=action["confidence"],
+                            player_name=f"{event.get('team', 'TEAM').upper()}_P{event.get('player_id', 0)}",
+                            player_id=event.get('player_id', 0),
+                            team=event.get('team', 'unknown'),
+                            action=event.get('event', 'unknown'),
+                            action_confidence=event.get('confidence', 0.5),
                             nearby_players=[],
                             ball_position={
-                                "x": detections["ball"]["center"][0] if detections["ball"] else 0,
-                                "y": detections["ball"]["center"][1] if detections["ball"] else 0,
+                                "x": detections["ball"]["center"][0] if detections.get("ball") else 0,
+                                "y": detections["ball"]["center"][1] if detections.get("ball") else 0,
                                 "z": 0
                             },
-                            field_zone=self._get_field_zone(player)
+                            field_zone=event.get('zone', 'midfield')
                         )
                         
+                        commentary = self.commentator.generate_commentary(player_action)
+                        self.stats["commentaries_generated"] += 1
+                        last_time = current_time
+                        
                         try:
-                            # Generate commentary
-                            commentary = self.commentator.generate_commentary(player_action)
-                            
-                            self.stats["commentaries_generated"] += 1
-                            last_time = current_time
-                            
-                            # Queue for voice
-                            try:
-                                self.commentary_queue.put({
-                                    "text": commentary,
-                                    "timestamp": datetime.now()
-                                }, timeout=0.5)
-                            except queue.Full:
-                                pass
-                            
-                        except Exception as e:
-                            logger.error(f"Commentary error: {e}")
+                            self.commentary_queue.put({
+                                "text": commentary,
+                                "timestamp": datetime.now()
+                            }, timeout=0.5)
+                        except queue.Full:
+                            pass
+                    
+                    except Exception as e:
+                        logger.error(f"Commentary error: {e}")
         
         logger.info("✓ Commentary thread stopped")
     

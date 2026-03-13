@@ -5,10 +5,12 @@ Detects: Players, ball, referee, intended action
 
 import cv2
 import numpy as np
+import os
 from ultralytics import YOLO
 import torch
 from typing import Dict, List, Tuple, Optional
 import logging
+from event_classifier import EventClassifier
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,30 +22,52 @@ class FootballObjectDetector:
     Uses YOLOv8 for multi-object detection (players, ball, etc.)
     """
     
-    def __init__(self, model_size: str = "medium"):
+    def __init__(self, model_size: str = "medium", custom_weights: str = None):
         """
         Initialize YOLO detector
         
         Args:
             model_size: "nano", "small", "medium", "large" or "xlarge"
                        Larger = more accurate, slower
+            custom_weights: Path to a custom-trained .pt weights file.
+                           If provided, this takes priority over model_size.
         """
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {self.device}")
         
-        # Load YOLOv8 model (nano is fastest, medium is balanced)
-        self.model = YOLO(f"yolov8{model_size}.pt")
+        # Load YOLO model: custom weights if available, else generic pretrained
+        if custom_weights and os.path.exists(custom_weights):
+            logger.info(f"Loading CUSTOM football weights: {custom_weights}")
+            self.model = YOLO(custom_weights)
+            self.using_custom_model = True
+        else:
+            if custom_weights:
+                logger.warning(f"Custom weights not found at '{custom_weights}', falling back to generic YOLOv8{model_size}")
+            self.model = YOLO(f"yolov8{model_size}.pt")
+            self.using_custom_model = False
         self.model.to(self.device)
         
-        # Custom class mapping for football
-        self.class_names = {
-            0: "person",  # Players and referee
+        # Class mappings
+        # Generic COCO classes (used when no custom model)
+        self.coco_class_names = {
+            0: "person",
             32: "sports ball"
+        }
+        # Custom football classes (set by Roboflow training)
+        # These map to the classes defined in the training data.yaml
+        self.football_class_names = {
+            0: "ball",
+            1: "goalkeeper",
+            2: "player",
+            3: "referee",
         }
         
         # Tracking for players across frames
         self.player_tracks = {}
         self.frame_count = 0
+        
+        # Tier 2: Event classifier
+        self.event_classifier = EventClassifier()
         
     def detect_frame(self, frame: np.ndarray, conf_threshold: float = 0.5) -> Dict:
         """
@@ -74,16 +98,28 @@ class FootballObjectDetector:
                 confidence = float(box.conf[0])
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 
-                # Ball detection (class 32)
-                if cls_id == 32 and confidence > conf_threshold:
+                # Determine what this detection is
+                is_ball = False
+                is_person = False
+                
+                if self.using_custom_model:
+                    # Custom model: use football-specific classes
+                    cls_name = self.football_class_names.get(cls_id, "unknown")
+                    is_ball = (cls_name == "ball")
+                    is_person = (cls_name in ["player", "goalkeeper", "referee"])
+                else:
+                    # Generic COCO model
+                    is_ball = (cls_id == 32)
+                    is_person = (cls_id == 0)
+                
+                if is_ball and confidence > conf_threshold:
                     detections["ball"] = {
                         "bbox": (x1, y1, x2 - x1, y2 - y1),
                         "center": ((x1 + x2) // 2, (y1 + y2) // 2),
                         "confidence": confidence
                     }
                 
-                # Person detection (players/referee)
-                elif cls_id == 0:
+                elif is_person:
                     player = {
                         "bbox": (x1, y1, x2 - x1, y2 - y1),
                         "center": ((x1 + x2) // 2, (y1 + y2) // 2),
@@ -102,8 +138,14 @@ class FootballObjectDetector:
                     
                     detections["players"].append(player)
         
-        # Infer actions from player/ball positions
+        # Infer actions from player/ball positions (Tier 1 heuristics)
         detections["actions"] = self._infer_actions(detections)
+        
+        # Tier 2: Classify events from the detection sequence
+        event = self.event_classifier.update(detections)
+        if event:
+            detections["event"] = event
+            logger.info(f"⚽ EVENT DETECTED: {event['event']} (conf: {event['confidence']:.2f}) — {event['description']}")
         
         return detections
     
