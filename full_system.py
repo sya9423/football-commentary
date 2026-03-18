@@ -9,7 +9,7 @@ import threading
 import queue
 import logging
 import asyncio
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 import pygame
 
@@ -36,13 +36,13 @@ class FullCommentarySystem:
     """
     
     def __init__(self,
-                 video_source: str = 0,
+                 video_source: Union[str, int] = 0,
                  generator_backend: str = "ollama",
                  home_team: str = "Home",
                  away_team: str = "Away",
                  enable_voice: bool = True,
                  voice_model: str = "en-GB-ThomasNeural",
-                 custom_weights: str = None):
+                 custom_weights: Optional[str] = None):
         
         logger.info("=" * 60)
         logger.info("FOOTBALL COMMENTARY SYSTEM - INITIALIZING")
@@ -359,7 +359,8 @@ if __name__ == "__main__":
         home_team="Manchester United",
         away_team="Liverpool",
         enable_voice=True,
-        voice_model="en-GB-ThomasNeural"
+        voice_model="en-GB-ThomasNeural",
+        custom_weights="football_yolov8s_best.pt"
     )
     
     system.run()

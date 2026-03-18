@@ -22,7 +22,7 @@ class FootballObjectDetector:
     Uses YOLOv8 for multi-object detection (players, ball, etc.)
     """
     
-    def __init__(self, model_size: str = "medium", custom_weights: str = None):
+    def __init__(self, model_size: str = "medium", custom_weights: Optional[str] = None):
         """
         Initialize YOLO detector
         
@@ -343,22 +343,38 @@ class FootballObjectDetector:
 
 # Example usage
 if __name__ == "__main__":
-    detector = FootballObjectDetector(model_size="small")
+    detector = FootballObjectDetector(
+        model_size="small",
+        custom_weights="football_yolov8s_best.pt"
+    )
     
     # Process video
-    cap = cv2.VideoCapture("football_match.mp4")  # Your video file
+    cap = cv2.VideoCapture("test_match.mp4")
+    
+    # Speed optimization parameters
+    FRAME_SKIP = 2  # Process every Nth frame
+    PROCESS_WIDTH = 854  # 480p resolution for faster YOLO
+    PROCESS_HEIGHT = 480
     
     frame_count = 0
+    last_detections = {"players": [], "ball": None, "actions": []}
+    
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
         
         # Resize for faster processing
-        frame = cv2.resize(frame, (1280, 720))
+        frame = cv2.resize(frame, (PROCESS_WIDTH, PROCESS_HEIGHT))
         
-        detections = detector.detect_frame(frame, conf_threshold=0.5)
-        
+        # Process every Nth frame, but display every frame
+        if frame_count % FRAME_SKIP == 0:
+            detections = detector.detect_frame(frame, conf_threshold=0.5)
+            last_detections = detections
+        else:
+             # Just increment frame counts or time on the visualizer without detection overhead
+             detections = last_detections
+             
         frame_vis = detector.visualize(frame, detections)
         cv2.imshow("Detection", frame_vis)
         
